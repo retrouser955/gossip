@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { UserContextValues, useUser } from "./hooks/useUser"
+import Swal from "sweetalert2"
 
 function App() {
   const { login, signUp, username } = useUser() as UserContextValues
@@ -48,7 +49,9 @@ function App() {
                     signUp(user, password).catch(err => {
                       setLoading(false)
                       alert(err)
-                    }).then(() => setLoading(false))
+                    }).then(() => setLoading(false)).catch((reason: string) => {
+                      Swal.fire("Error", reason, "error")
+                    })
                   }}>
                     Sign Up
                   </button>
