@@ -82,7 +82,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     function getUser(alias: string): Promise<FetchUserData|void> {
-        return new Promise<FetchUserData|void>((resolve, reject) => {
+        return new Promise<FetchUserData|void>((resolve) => {
             db.get(`~@${alias}`).once((data: any) => {
                 if(!data) resolve(undefined)
 
@@ -125,7 +125,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     function signUp(username: string, password: string) {
         return new Promise<void>(async (resolve, reject) => {
-            const doesUserExists = await new Promise((resolve, reject) => db.get(`~@${username}`).once((data: any) => resolve(data)))
+            const doesUserExists = await new Promise((resolve) => db.get(`~@${username}`).once((data: any) => resolve(data)))
 
             if (doesUserExists) reject("Unable to create account as user with this alias already exists")
 
