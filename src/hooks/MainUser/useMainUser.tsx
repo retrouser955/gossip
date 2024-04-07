@@ -4,17 +4,19 @@ import "gun/lib/radix"
 import "gun/lib/radisk"
 import "gun/lib/store"
 import "gun/lib/rindexed"
-import SEA from "gun/sea"
+import "gun/sea"
 import { useState, useContext, createContext, useEffect, useRef } from "react";
 import Swal from "sweetalert2";
+import { GunUtils } from "../../GunUtils/GunUtils";
+import { Friends } from "./helpers/Friends";
 
 export interface FetchUserData {
     alias: string;
     displayname: string;
-    auth: string;
     profilepic?: string;
     epub: string;
     pub: string;
+    bio?: string;
 }
 
 export interface UserContextValues {
@@ -30,19 +32,23 @@ export interface UserContextValues {
     pfp: string;
     encryptMessage: (data: string, epub: string) => Promise<string>;
     decryptMessage: (data: string, epub: string) => Promise<string>;
-    getUser: (alias: string) => Promise<FetchUserData|void>
+    getUser: (alias: string) => Promise<FetchUserData|void>;
+    bio: string;
+    friends: { [key: string]: FetchUserData };
+    pub?: string;
+    epub?: string;
 }
 
 const UserContext = createContext<UserContextValues | null>(null)
 
-export function useUser() {
+export function useMainUser() {
     return useContext(UserContext)
 }
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
     const [username, setUsername] = useState("")
     const [pfp, setPfp] = useState("")
-    const seaKeys = useRef<ISEAPair | void>(undefined)
+    const [seaKeys, setSeaKeys] = useState<ISEAPair | void>(undefined)
 
     const db = GUN({
         peers: ['https://gun-manhattan.herokuapp.com/gun', `https://gundb-relay-mlccl.ondigitalocean.app/gun`]
@@ -51,6 +57,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const user = db.user().recall({ sessionStorage: true }) as IGunUserInstance<any, any, any, IGunInstanceRoot<any, IGunInstance<any>>>
 
     const [displayname, setDisplayname] = useState("")
+
+    const [bio, setBio] = useState("")
+
+    const [friends, setFriends] = useState<UserContextValues['friends']>({})
+
+    useEffect(() => console.log(friends), [friends])
 
     useEffect(() => {
         db.on("auth", async (ack) => {
@@ -61,7 +73,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             }
 
             // @ts-expect-error
-            seaKeys.current = ack.sea
+           setSeaKeys(ack.sea)
 
             user.get("alias").on((v) => {
                 setUsername(v)
@@ -78,11 +90,36 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
                 setPfp(url)
             })
+
+            user.get("bio").on(async (v: string) => {
+                setBio(v)
+            })
+
+            db.get(`${user.is?.epub!}-friends`).on(async (val: any) => {
+                console.log(val)
+
+                const friends = new Friends(db, undefined, user)
+
+                const fr = await friends.getAll()
+                // @ts-ignore
+                const filtered = Object.keys(fr).filter((v: any) => v?.alias).reduce((res, key) => (res[key] = obj[key], res), {})
+
+                console.log(filtered)
+
+                setFriends(filtered)
+            })
         })
     }, [])
 
-    function getUser(alias: string): Promise<FetchUserData|void> {
-        return new Promise<FetchUserData|void>((resolve) => {
+    // function getUserByPublicKey(pub: string) {
+    //     return new Promise<FetchUserData>((resolve) => {
+    //         // @ts-ignore
+    //         db.user(pub).once(resolve)
+    //     })
+    // }
+
+    function getUser(alias: string): Promise<FetchUserData|undefined> {
+        return new Promise<FetchUserData|undefined>((resolve) => {
             db.get(`~@${alias}`).once((data: any) => {
                 if(!data) resolve(undefined)
 
@@ -93,35 +130,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         })
     }
 
-    async function encryptMessage(data: string, epub: string) {
-        if (!seaKeys.current) throw new Error("Keys not set")
+    const encryptMessage = (data: string, epub: string) => GunUtils.sea.encryptData(
+        data,
+        seaKeys!.epriv,
+        seaKeys!.epub,
+        epub
+    )
 
-        const secret = await SEA.secret(epub, {
-            epriv: seaKeys.current.epriv,
-            epub: seaKeys.current.epub
-        })
-
-        if (secret) return await SEA.encrypt(data, {
-            epriv: secret
-        })
-
-        throw new Error("Unable to encrypt message")
-    }
-
-    async function decryptMessage(data: string, epub: string) {
-        if (!seaKeys.current) throw new Error("Keys not set")
-
-        const secret = await SEA.secret(epub, {
-            epriv: seaKeys.current.epriv,
-            epub: seaKeys.current.epub
-        })
-
-        if (secret) return await SEA.decrypt(data, {
-            epriv: secret
-        })
-
-        throw new Error("Unable to decrypt message")
-    }
+    const decryptMessage = async (data: string, epub: string) => GunUtils.sea.decryptMessage(
+        data,
+        seaKeys!.epriv,
+        seaKeys!.epub,
+        epub
+    ) 
 
     function signUp(username: string, password: string) {
         return new Promise<void>(async (resolve, reject) => {
@@ -137,8 +158,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                     user.auth(username, password, (ack) => {
                         // @ts-expect-error
                         if (ack?.err) {
-                            alert(err)
-                            reject(err)
+                            // @ts-expect-error
+                            alert(ack.err)
+                            // @ts-expect-error
+                            reject(ack.err)
                         } else {
                             // @ts-ignore
                             const pair = ack?.sea
@@ -162,7 +185,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 // @ts-expect-error
                 if (ack.err) {
                     // @ts-expect-error
-                    reject(err)
+                    reject(ack?.err)
                 } else {
                     // @ts-ignore
                     const pair = ack?.sea
@@ -208,7 +231,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         pfp,
         encryptMessage,
         decryptMessage,
-        getUser
+        getUser,
+        bio,
+        friends,
+        epub: seaKeys!?.epub,
+        pub: seaKeys!?.epriv
     }
 
     return (

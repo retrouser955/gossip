@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { UserContextValues, useUser } from "./hooks/useUser"
+import { UserContextValues, useMainUser } from "./hooks/MainUser/useMainUser"
 import Swal from "sweetalert2"
 
 function App() {
-  const { login, signUp, username } = useUser() as UserContextValues
+  const { login, signUp, username } = useMainUser() as UserContextValues
   const [user, setUser] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)

@@ -1,13 +1,14 @@
 import { useRef, useState } from "react"
-import { UserContextValues, useUser } from "../../hooks/useUser";
+import { UserContextValues, useMainUser } from "../../hooks/MainUser/useMainUser";
 import Resizer from "react-image-file-resizer"
 import Swal from "sweetalert2";
 
 export default function ProfileEdit() {
-  const { displayname: currentDisplayname, username: currentUsername, user } = useUser() as UserContextValues
+  const { displayname: currentDisplayname, username: currentUsername, user, bio: currentBio } = useMainUser() as UserContextValues
 
   const [displayName, setDisplayname] = useState(currentDisplayname)
   const [usrname, setUsrname] = useState(currentUsername)
+  const [bio, setBio] = useState(currentBio)
   const file = useRef("")
 
   const fileSelector = useRef<HTMLInputElement | null>(null)
@@ -31,10 +32,10 @@ export default function ProfileEdit() {
           <label htmlFor="pfp" className="block text-gray-300 text-sm font-bold mb-2">Select Profile Picture</label>
           <input type="file" id="pfp" className="hidden" ref={fileSelector} accept="image/jpeg, image/png" onChange={async (v) => {
             const files = v.target.files as FileList
-            
+
             const indivFile = files[0]
 
-            if(!indivFile.type.startsWith("image/")) {
+            if (!indivFile.type.startsWith("image/")) {
               v.target.value = ""
               return Swal.fire("Failed to upload", "Cannot add a file that is not an image", "error")
             }
@@ -68,6 +69,15 @@ export default function ProfileEdit() {
             fileSelector.current?.click()
           }}>Select Avatar</button>
         </div>
+        <div className="mb-2">
+          <label className="block text-gray-300 text-sm font-bold mb-2" htmlFor="bio">
+            Bio
+          </label>
+
+          <textarea name="Bio" id="bio" className="resize-none w-full outline-none p-2 rounded-lg" cols={30} maxLength={200} rows={6} defaultValue={currentBio} onChange={(e) => {
+            setBio(e.target.value)
+          }}></textarea>
+        </div>
         <button className="mt-2 hover:bg-green-900 transition-all w-20 h-10 text-lg text-gray-300 border-2 rounded-lg border-blue-600" onClick={async () => {
           if (!displayName) return alert('Must choose a display name!')
           if (!usrname) return alert("You must choose a username")
@@ -78,7 +88,9 @@ export default function ProfileEdit() {
 
           promises.push(new Promise<void>((res) => user.get('displayname').put(displayName, () => res())))
 
-          promises.push(new Promise<void>((res) => user.get("profilepic").put(file.current, () => res())))
+          if(file.current) promises.push(new Promise<void>((res) => user.get("profilepic").put(file.current, () => res())))
+
+          promises.push(new Promise((res) => user.get("bio").put(bio, () => res)))
 
           await Promise.all(promises)
 
