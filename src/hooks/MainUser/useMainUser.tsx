@@ -5,7 +5,7 @@ import "gun/lib/radisk"
 import "gun/lib/store"
 import "gun/lib/rindexed"
 import "gun/sea"
-import { useState, useContext, createContext, useEffect, useRef } from "react";
+import { useState, useContext, createContext, useEffect } from "react";
 import Swal from "sweetalert2";
 import { GunUtils } from "../../GunUtils/GunUtils";
 import { Friends } from "./helpers/Friends";
